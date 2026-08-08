@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<title>بازی آموزشی فارسی</title>
+<style>
+    * { box-sizing: border-box; }
+    body {
+        margin: 0;
+        font-family: Tahoma, Arial, sans-serif;
+        background: linear-gradient(135deg, #ffe6f2, #e6f7ff, #fff7cc);
+        min-height: 100vh;
+        min-height: 100dvh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 16px;
+        overflow-x: hidden;
+    }
+    .card {
+        width: min(92vw, 700px);
+        background: rgba(255,255,255,0.96);
+        border-radius: 30px;
+        box-shadow: 0 12px 35px rgba(0,0,0,0.15);
+        padding: 25px;
+        text-align: center;
+        border: 4px solid #ff9ac1;
+    }
+    h1, h2 { color: #d63384; margin-top: 10px; line-height: 1.7; }
+    .header {
+        background: #fff0f6;
+        color: #7a1f4d;
+        font-weight: bold;
+        padding: 12px;
+        border-radius: 18px;
+        margin-bottom: 14px;
+        border: 2px dashed #ff9ac1;
+        line-height: 1.8;
+    }
+    .progress { color: #636e72; font-size: 14px; margin-bottom: 4px; }
+    input {
+        width: 80%; max-width: 350px; padding: 12px;
+        border-radius: 14px; border: 2px solid #ff9ac1;
+        font-size: 18px; outline: none; margin-bottom: 12px; text-align: center;
+    }
+    button {
+        width: 100%; padding: 14px; margin: 8px 0; border: none;
+        border-radius: 16px; font-size: 18px; cursor: pointer;
+        font-weight: bold; transition: 0.2s;
+        -webkit-tap-highlight-color: transparent;
+    }
+    button:active { transform: scale(0.985); }
+    button:disabled { opacity: 0.65; cursor: default; }
+    .start-btn { background: #ff66a3; color: white; }
+    .start-btn:hover { background: #e84393; }
+    .option-btn { background: #6c5ce7; color: white; }
+    .option-btn:hover { background: #5a4bd6; }
+    .sound-btn { background: #00b894; color: white; width: auto; padding: 10px 18px; margin-bottom: 15px; }
+    .sound-btn.off { background: #636e72; }
+    .restart-btn { background: #00b894; color: white; margin-top: 18px; }
+    #feedback { margin-top: 15px; font-size: 22px; font-weight: bold; min-height: 40px; }
+    .hidden { display: none !important; }
+    .sticker { font-size: 42px; margin: 10px 0; animation: pop 0.5s ease-in-out; }
+    @keyframes pop { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+    .final-message { font-size: 24px; color: #e17055; line-height: 1.9; }
+    @media (max-width: 480px) {
+        .card { padding: 18px; border-radius: 24px; }
+        h1 { font-size: 25px; }
+        h2 { font-size: 21px; }
+        button { font-size: 17px; padding: 13px; }
+        .final-message { font-size: 21px; }
+    }
+</style>
+</head>
+<body>
+<div class="card">
+    <div id="start-screen">
+        <h1>🌸 بازی آموزشی فارسی 🌸</h1>
+        <p>نام خودت را بنویس:</p>
+        <input type="text" id="student-name" maxlength="40" autocomplete="off" placeholder="مثلاً: فاطمه">
+        <br>
+        <button class="sound-btn" type="button" onclick="toggleMusic()" id="music-btn">🔊 موسیقی روشن</button>
+        <button class="start-btn" type="button" onclick="startGame()">شروع بازی</button>
+    </div>
+
+    <div id="quiz-screen" class="hidden">
+        <div class="header">طراح: خدیجه حیدری ـ دبستان شاهد قدس</div>
+        <div id="progress" class="progress"></div>
+        <h2 id="student-welcome"></h2>
+        <div id="question-box"></div>
+        <div id="feedback" aria-live="polite"></div>
+    </div>
+</div>
+
+<script>
+    "use strict";
+
+    let studentName = "";
+    let currentQ = 0;
+    let musicOn = true;
+    let answerLocked = false;
+    let audioCtx = null;
+    let musicTimer = null;
+    let musicStep = 0;
+
+    const questions = [
+        { q: "ماه‌های فروردین، اردیبهشت، خرداد مربوط به کدام فصل است؟", options: ["زمستان ❄", "بهار 🌸", "پاییز 🍁", "تابستان 🌞"], a: 1, good: "🌸👏" },
+        { q: "ماه‌های مهر، آبان، آذر مربوط به کدام فصل است؟", options: ["تابستان 🌞", "پاییز 🍁", "زمستان ❄", "بهار 🌸"], a: 1, good: "🍁👏" },
+        { q: "ویژگی گرما، آفتاب تند و شنا مربوط به کدام فصل است؟", options: ["بهار 🌸", "پاییز 🍁", "زمستان ❄", "تابستان 🌞"], a: 3, good: "🌞👏" },
+        { q: "کدام میوه در فصل زمستان است؟", options: ["سیب", "پرتقال", "هلو", "گیلاس"], a: 1, good: "🍊👏" },
+        { q: "بارش برف و آدم‌برفی ویژگی کدام فصل است؟", options: ["تابستان 🌞", "بهار 🌼", "زمستان ❄", "پاییز 🍂"], a: 2, good: "❄👏" },
+        { q: "جمع کلمهٔ «گذشته» + «ان» کدام است؟", options: ["گذشتگان", "گذشتهان", "گذشته گان", "گذشتن"], a: 0, good: "✅👏" },
+        { q: "اشاره به دور کدام است؟", options: ["این میز", "این کتاب", "آن میز، همان مدرسه", "همه موارد"], a: 2, good: "✅👏" },
+        { q: "«همین خانه» اشاره به ....... است.", options: ["دور", "نزدیک", "خیلی دور", "هیچ‌کدام"], a: 1, good: "✅👏" },
+        { q: "صدای «هاپ‌هاپ» مربوط به کدام حیوان است؟", options: ["گربه", "سگ", "گاو", "گنجشک"], a: 1, good: "🐶👏" },
+        { q: "وقتی بخواهیم دو چیز یا دو نفر را با هم مقایسه کنیم از ........ استفاده می‌کنیم.", options: ["تر", "ترین", "ها", "ی"], a: 0, good: "✅👏" }
+    ];
+
+    function ensureAudio() {
+        if (!audioCtx) {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextClass) return null;
+            audioCtx = new AudioContextClass();
+        }
+        if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+        return audioCtx;
+    }
+
+    function tone(freq, duration = 0.15, volume = 0.06, delay = 0, type = "sine") {
+        const ctx = ensureAudio();
+        if (!ctx) return;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        const start = ctx.currentTime + delay;
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(volume, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + duration + 0.03);
+    }
+
+    function playCorrectSound() {
+        tone(523.25, 0.14, 0.07, 0.00, "triangle");
+        tone(659.25, 0.14, 0.07, 0.12, "triangle");
+        tone(783.99, 0.22, 0.07, 0.24, "triangle");
+    }
+
+    function playWrongSound() {
+        tone(220.00, 0.18, 0.05, 0.00, "sawtooth");
+        tone(174.61, 0.25, 0.04, 0.15, "sawtooth");
+    }
+
+    const melody = [261.63, 329.63, 392.00, 329.63, 293.66, 349.23, 440.00, 349.23];
+
+    function startBackgroundMusic() {
+        if (!musicOn || musicTimer) return;
+        ensureAudio();
+        musicStep = 0;
+        const playStep = () => {
+            if (!musicOn) return;
+            tone(melody[musicStep % melody.length], 0.34, 0.018, 0, "sine");
+            musicStep++;
+        };
+        playStep();
+        musicTimer = setInterval(playStep, 500);
+    }
+
+    function stopBackgroundMusic() {
+        if (musicTimer) {
+            clearInterval(musicTimer);
+            musicTimer = null;
+        }
+    }
+
+    function toggleMusic() {
+        musicOn = !musicOn;
+        const btn = document.getElementById("music-btn");
+        if (musicOn) {
+            btn.innerText = "🔊 موسیقی روشن";
+            btn.classList.remove("off");
+            if (!document.getElementById("quiz-screen").classList.contains("hidden")) startBackgroundMusic();
+        } else {
+            btn.innerText = "🔇 موسیقی خاموش";
+            btn.classList.add("off");
+            stopBackgroundMusic();
+        }
+    }
+
+    function startGame() {
+        ensureAudio();
+        studentName = document.getElementById("student-name").value.trim() || "قهرمان کوچولو";
+        currentQ = 0;
+        answerLocked = false;
+        document.getElementById("start-screen").classList.add("hidden");
+        document.getElementById("quiz-screen").classList.remove("hidden");
+        document.getElementById("student-welcome").innerText = `${studentName} عزیزم، آماده‌ای؟`;
+        showQuestion();
+        startBackgroundMusic();
+    }
+
+    function showQuestion() {
+        answerLocked = false;
+        const questionBox = document.getElementById("question-box");
+        const feedback = document.getElementById("feedback");
+        const progress = document.getElementById("progress");
+
+        if (currentQ >= questions.length) {
+            stopBackgroundMusic();
+            progress.textContent = "تمام شد 🎉";
+            questionBox.innerHTML = "";
+            feedback.innerHTML = "";
+
+            const message = document.createElement("div");
+            message.className = "final-message";
+            message.append("آفرین به قهرمان کلاس دوم ب 🌟");
+            message.append(document.createElement("br"));
+            message.append(`${studentName} عزیزم، تو عالی بودی!`);
+            message.append(document.createElement("br"));
+            message.append("خانم حیدری دوستت داره ❤");
+            feedback.appendChild(message);
+
+            const restart = document.createElement("button");
+            restart.className = "restart-btn";
+            restart.type = "button";
+            restart.textContent = "دوباره بازی کن";
+            restart.onclick = resetGame;
+            feedback.appendChild(restart);
+            playCorrectSound();
+            return;
+        }
+
+        const q = questions[currentQ];
+        progress.textContent = `سؤال ${currentQ + 1} از ${questions.length}`;
+        questionBox.innerHTML = "";
+
+        const title = document.createElement("h2");
+        title.textContent = q.q;
+        questionBox.appendChild(title);
+
+        q.options.forEach((opt, i) => {
+            const btn = document.createElement("button");
+            btn.className = "option-btn";
+            btn.type = "button";
+            btn.textContent = opt;
+            btn.onclick = () => check(i);
+            questionBox.appendChild(btn);
+        });
+        feedback.innerHTML = "";
+    }
+
+    function setOptionsDisabled(disabled) {
+        document.querySelectorAll(".option-btn").forEach(btn => { btn.disabled = disabled; });
+    }
+
+    function check(idx) {
+        if (answerLocked) return;
+        const correct = questions[currentQ].a;
+        const feedback = document.getElementById("feedback");
+
+        if (idx === correct) {
+            answerLocked = true;
+            setOptionsDisabled(true);
+            feedback.innerHTML = `<div class="sticker">🌸👏 ${questions[currentQ].good}</div><div>آفرین! جواب درست بود.</div>`;
+            playCorrectSound();
+            setTimeout(() => {
+                currentQ++;
+                showQuestion();
+            }, 1200);
+        } else {
+            feedback.innerHTML = `<div class="sticker">😢</div><div>دوباره تمرین کن</div>`;
+            playWrongSound();
+        }
+    }
+
+    function resetGame() {
+        stopBackgroundMusic();
+        currentQ = 0;
+        answerLocked = false;
+        document.getElementById("quiz-screen").classList.add("hidden");
+        document.getElementById("start-screen").classList.remove("hidden");
+        document.getElementById("student-name").focus();
+    }
+</script>
+</body>
+</html>
